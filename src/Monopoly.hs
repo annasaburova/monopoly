@@ -421,7 +421,8 @@ drawGameState images gameState
     player4 = ((players gameState) !! 3)
 
 drawMoney :: Player -> Picture
-drawMoney player = translate x y (scale r r (text money_str))
+drawMoney player | (money player) >= 0 = translate x y (scale r r (text money_str))
+								 | otherwise = translate x y (scale r r (text "Вышел из игры"))
     where
         (x, y) = (-630, 400 - 50 * (fromIntegral (colour player)))
         money_str = "Player " ++ colour_str ++ ": " ++ show (money player)
@@ -433,7 +434,8 @@ drawPayMenu image = translate 0 0 image
 
 -- | Отобразить фишки.
 drawPiece :: Picture -> Player -> Picture
-drawPiece image player = translate x y (scale r r image)
+drawPiece image player | (money player) >= 0 = translate x y (scale r r image)
+											 | otherwise = image
   where
     (x, y) = (playerPosition player)
     r = 2
@@ -461,8 +463,8 @@ handleGame (EventKey (MouseButton LeftButton) Down _ mouse) gameState
     | otherwise = gameState
 handleGame _ gameState = gameState
 
-gameNextPlater :: GameState -> GameState
-gameNextPlater gameState = gameState { gamePlayer = nextPlayer gameState }
+gameNextPlayer :: GameState -> GameState
+gameNextPlayer gameState = gameState { gamePlayer = nextPlayer gameState }
 
 isPay :: Point -> Maybe Bool
 isPay (x, y) | x < 0 && x > -100 && y > -50 && y < 50 = Just True
@@ -479,7 +481,8 @@ doStep gameState =
 
 
 canGo :: GameState -> Maybe GameState
-canGo gameState = Just (gameState)
+canGo gameState | (money ((players gameState) !! ((gamePlayer gameState)))) >= 0 = Just (gameState)
+								| otherwise = Just (gameNextPlayer gameState)
 
 makeMove :: GameState -> GameState
 makeMove gameState = (makeStepFeatures (changePlayerCell (throwCubes gameState)))
@@ -488,7 +491,7 @@ makeStepFeatures :: GameState -> GameState
 makeStepFeatures gameState
     -- Если поле нельзя купить => нужно отдать налоги и дать деньги владельцу
     -- и перейти к следующему игроку
-    | not (canBuy gameState) = gameNextPlater (getPriceRent (payPriceRent gameState))
+    | not (canBuy gameState) = gameNextPlayer (getPriceRent (payPriceRent gameState))
     | otherwise = gameState
 
 payPriceRent :: GameState -> GameState
@@ -511,6 +514,7 @@ getPriceRent gameState = gameState
     lastPlayers = reverse (take (length (players gameState) - (colour player)) (reverse (players gameState)))
     rent_value = (priceRent ((land gameState) !! (playerCell player)))
 
+--Изменить баланс игрока
 changeBalance :: Player -> Int -> Player
 changeBalance player value = player
     { money = (money player) + value }
@@ -596,10 +600,11 @@ changeOwner :: Street -> Int -> Street
 changeOwner prev_street owner_id = prev_street { owner = owner_id, isRent = True }
 
 changePlayerCell :: GameState -> GameState
-changePlayerCell gameState = gameState
+changePlayerCell gameState | (money player) >= 0 = gameState
     { players = firstPlayers ++ [player_after_move] ++ lastPlayers
     , typeStep = getTypeByCell (playerCell player_after_move) gameState
     }
+    											 | otherwise = gameState
   where
     firstPlayers = take (gamePlayer gameState) (players gameState)
     player = (players gameState) !! (gamePlayer gameState)
